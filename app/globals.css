@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f2e8;
+  --background-strong: #efe3cf;
+  --surface: rgba(255, 252, 247, 0.92);
+  --surface-strong: #fffaf2;
+  --text: #2f241d;
+  --text-soft: #6f6258;
+  --accent: #b94c2f;
+  --accent-strong: #8f351d;
+  --accent-soft: #f6d9b8;
+  --line: rgba(85, 59, 40, 0.12);
+  --ok: #2f7a4e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background:
+    radial-gradient(circle at top left, rgba(255, 231, 194, 0.8), transparent 34%),
+    radial-gradient(circle at bottom right, rgba(200, 100, 67, 0.18), transparent 26%),
+    linear-gradient(180deg, #f7f2e8 0%, #efe7d9 100%);
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  font-family:
+    "Hiragino Sans",
+    "Noto Sans JP",
+    sans-serif;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 20px 16px 40px;
+}
+
+@media (min-width: 768px) {
+  .app-shell {
+    padding: 32px 24px 56px;
+  }
+}
