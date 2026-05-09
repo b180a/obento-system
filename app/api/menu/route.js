@@ -1,8 +1,8 @@
 export const runtime = "edge";
 
 import { NextResponse } from "next/server";
-import { getMenuByDate } from "../../../lib/db";
-import { canOrderDateForOrderWindow, parseDateInput } from "../../../lib/date";
+import { getMenuByDate, isDebugMode, getSetting } from "../../../lib/db";
+import { canOrderDateForOrderWindow, parseDateInput, setSystemDateOverride } from "../../../lib/date";
 
 function toMenuItems(menu) {
   const toImageSrc = (value) => {
@@ -34,6 +34,14 @@ function toMenuItems(menu) {
 }
 
 export async function GET(request) {
+  const debugMode = await isDebugMode();
+  if (debugMode) {
+    const override = await getSetting("debug_system_date");
+    setSystemDateOverride(override);
+  } else {
+    setSystemDateOverride(null);
+  }
+
   const dateParam = request.nextUrl.searchParams.get("date");
   const date = parseDateInput(dateParam || "");
 

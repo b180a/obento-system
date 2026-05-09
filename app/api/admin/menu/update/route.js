@@ -1,7 +1,7 @@
 export const runtime = "edge";
 
 import { NextResponse } from "next/server";
-import { upsertMenu } from "../../../../../lib/db";
+import { upsertMenu, isDebugMode } from "../../../../../lib/db";
 import {
   formatDateInput,
   getCurrentWeekStart,
@@ -75,10 +75,11 @@ export async function POST(request) {
 
     const targetWeekStart = getWeekStart(referenceDate);
     const currentWeekStart = getCurrentWeekStart();
+    const debugMode = await isDebugMode();
 
-    if (targetWeekStart <= currentWeekStart) {
+    if (targetWeekStart <= currentWeekStart && !debugMode) {
       return NextResponse.json(
-        { error: "当週および過去週のメニューは編集できません。" },
+        { error: "当週および過去週のメニューは編集できません（デバッグモード時を除く）。" },
         { status: 400 },
       );
     }

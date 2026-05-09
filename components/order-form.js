@@ -7,12 +7,74 @@ import {
   formatLongDate,
   getOrderWindowWeekStart,
   getWeekDates,
-  isWeekendNow,
+  isWeekend,
+  getNow,
   parseDateInput,
 } from "../lib/date";
 
 const GRADE_OPTIONS = ["小１", "小２", "小３", "小４", "小５", "小６", "中１", "中２", "中３"];
 const CLASS_OPTIONS = ["１組", "２組", "３組", "４組", "５組"];
+
+const translations = {
+  ja: {
+    title: "お弁当予約システム",
+    grade: "学年",
+    class: "組",
+    name: "氏名",
+    email: "メールアドレス",
+    select_placeholder: "選択してください",
+    name_placeholder: "例: 山田 花子",
+    delivery_date_label: "受取日の指定",
+    week_switch: "週切替",
+    ordered: "注文済",
+    holiday: "休業日",
+    no_selectable_dates_next: "次週の注文受付対象日がありません。",
+    no_selectable_dates_this: "今週の注文受付は終了しました。",
+    weekly_menu: "週替わりメニュー",
+    loading: "読み込み中...",
+    menu_label: "メニュー",
+    ticket_number: "チケット番号",
+    size: "サイズ",
+    options_label: "オプション（複数選択可）",
+    other: "その他",
+    other_placeholder: "その他の内容を入力",
+    ticket_info: "受取りはチケットと引き換えになります。",
+    submitting: "送信中...",
+    reserve_button: "この内容で予約する",
+    success_message: "お弁当を予約しました。ご利用ありがとうございました。",
+    error_fetch_menu: "メニュー取得に失敗しました。",
+    error_order: "注文に失敗しました。",
+  },
+  vi: {
+    title: "Hệ thống đặt cơm hộp",
+    grade: "Khối lớp",
+    class: "Lớp",
+    name: "Họ và tên",
+    email: "Địa chỉ email",
+    select_placeholder: "Vui lòng chọn",
+    name_placeholder: "VD: Nguyễn Văn A",
+    delivery_date_label: "Chỉ định ngày nhận",
+    week_switch: "Chuyển tuần",
+    ordered: "Đã đặt",
+    holiday: "Ngày nghỉ",
+    no_selectable_dates_next: "Không có ngày nhận đơn cho tuần tới.",
+    no_selectable_dates_this: "Đơn hàng cho tuần này đã kết thúc.",
+    weekly_menu: "Thực đơn hàng tuần",
+    loading: "Đang tải...",
+    menu_label: "Thực đơn",
+    ticket_number: "Số vé",
+    size: "Kích thước",
+    options_label: "Tùy chọn (có thể chọn nhiều)",
+    other: "Khác",
+    other_placeholder: "Nhập nội dung khác",
+    ticket_info: "Vui lòng xuất trình vé khi nhận cơm.",
+    submitting: "Đang gửi...",
+    reserve_button: "Đặt với nội dung này",
+    success_message: "Đã đặt cơm thành công. Xin cảm ơn quý khách.",
+    error_fetch_menu: "Lấy thực đơn thất bại.",
+    error_order: "Đặt hàng thất bại.",
+  },
+};
 
 const initialProfile = {
   grade: "",
@@ -38,7 +100,47 @@ function MenuPhoto({ item, active }) {
   );
 }
 
+function Header({ lang, setLang, t }) {
+  return (
+    <div className="border-b border-[color:var(--line)] bg-[linear-gradient(135deg,rgba(185,76,47,0.98),rgba(233,150,88,0.96))] px-5 py-6 text-white md:px-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-3xl font-black leading-tight md:text-5xl">
+          {t("title")}
+        </h1>
+        <div className="flex shrink-0 items-center gap-1 rounded-xl bg-white/10 p-1 self-start sm:self-center border border-white/10">
+          <button
+            type="button"
+            onClick={() => setLang("ja")}
+            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+              lang === "ja"
+                ? "bg-white text-[color:var(--accent)] shadow-sm"
+                : "text-white hover:bg-white/20"
+            }`}
+          >
+            日本語
+          </button>
+          <button
+            type="button"
+            onClick={() => setLang("vi")}
+            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+              lang === "vi"
+                ? "bg-white text-[color:var(--accent)] shadow-sm"
+                : "text-white hover:bg-white/20"
+            }`}
+          >
+            Tiếng Việt
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function OrderForm() {
+  const [mounted, setMounted] = useState(false);
+  const [lang, setLang] = useState("ja");
+  const t = (key) => (translations[lang] && translations[lang][key]) || key;
+
   const [profile, setProfile] = useState(initialProfile);
   const [menuItems, setMenuItems] = useState([]);
   const [selectedMenuItem, setSelectedMenuItem] = useState("");
@@ -55,34 +157,42 @@ export default function OrderForm() {
   const [showToast, setShowToast] = useState(false);
 
   const [debugMode, setDebugMode] = useState(false);
-
-  const initialWeekStart = useMemo(() => getOrderWindowWeekStart(), []);
-  const [displayedWeekStart, setDisplayedWeekStart] = useState(initialWeekStart);
-
-  const weekendAccess = useMemo(() => isWeekendNow(), []);
-  const currentWeekDates = useMemo(() => getWeekDates(displayedWeekStart), [displayedWeekStart]);
-  const selectableDates = useMemo(
-    () => {
-      return currentWeekDates.filter(d => canOrderDateForOrderWindow(d, undefined, holidays, debugMode).valid);
-    },
-    [currentWeekDates, holidays, debugMode],
-  );
-  const defaultDate = selectableDates[0] ? formatDateInput(selectableDates[0]) : "";
-
-  const [deliveryDate, setDeliveryDate] = useState(defaultDate);
+  const [displayedWeekStart, setDisplayedWeekStart] = useState(null);
+  const [deliveryDate, setDeliveryDate] = useState("");
+  const [weekendAccess, setWeekendAccess] = useState(false);
 
   useEffect(() => {
-    if (selectableDates.length > 0) {
-      const currentIsValid = selectableDates.some((d) => formatDateInput(d) === deliveryDate);
-      if (!deliveryDate || !currentIsValid) {
-        setDeliveryDate(formatDateInput(selectableDates[0]));
-      }
-    } else {
-      setDeliveryDate("");
+    // Hydration check
+    setMounted(true);
+    
+    // Initial data loading
+    const now = getNow();
+    setWeekendAccess(isWeekend(now));
+    
+    const initialWeekStart = getOrderWindowWeekStart(now);
+    setDisplayedWeekStart(initialWeekStart);
+
+    // Load from localStorage
+    const savedLang = window.localStorage.getItem("obento-lang");
+    if (savedLang && (savedLang === "ja" || savedLang === "vi")) {
+      setLang(savedLang);
     }
-  }, [selectableDates]);
 
-  useEffect(() => {
+    const storedProfile = window.localStorage.getItem("obento-profile");
+    if (storedProfile) {
+      try {
+        setProfile(JSON.parse(storedProfile));
+      } catch {}
+    }
+
+    const storedOrdered = window.localStorage.getItem("obento-ordered-dates");
+    if (storedOrdered) {
+      try {
+        setOrderedDates(JSON.parse(storedOrdered));
+      } catch {}
+    }
+
+    // Load settings and holidays
     async function loadSettings() {
       try {
         const response = await fetch("/api/settings");
@@ -96,27 +206,41 @@ export default function OrderForm() {
       try {
         const response = await fetch("/api/holidays");
         const data = await response.json();
-        if (response.ok) {
+        if (response.ok && data.holidays) {
           setHolidays(data.holidays.map((h) => h.date));
         }
       } catch {}
     }
     loadHolidays();
-
-    const stored = window.localStorage.getItem("obento-profile");
-    if (stored) {
-      try {
-        setProfile(JSON.parse(stored));
-      } catch {}
-    }
-
-    const ordered = window.localStorage.getItem("obento-ordered-dates");
-    if (ordered) {
-      try {
-        setOrderedDates(JSON.parse(ordered));
-      } catch {}
-    }
   }, []);
+
+  useEffect(() => {
+    if (mounted) {
+      window.localStorage.setItem("obento-lang", lang);
+    }
+  }, [lang, mounted]);
+
+  const currentWeekDates = useMemo(() => {
+    if (!displayedWeekStart) return [];
+    return getWeekDates(displayedWeekStart);
+  }, [displayedWeekStart]);
+
+  const selectableDates = useMemo(() => {
+    if (!displayedWeekStart) return [];
+    const now = getNow();
+    return currentWeekDates.filter((d) =>
+      canOrderDateForOrderWindow(d, now, holidays, debugMode).valid
+    );
+  }, [currentWeekDates, holidays, debugMode, displayedWeekStart]);
+
+  useEffect(() => {
+    if (mounted && selectableDates.length > 0) {
+      const currentIsValid = selectableDates.some((d) => formatDateInput(d) === deliveryDate);
+      if (!deliveryDate || !currentIsValid) {
+        setDeliveryDate(formatDateInput(selectableDates[0]));
+      }
+    }
+  }, [selectableDates, mounted, deliveryDate]);
 
   useEffect(() => {
     if (!deliveryDate || orderedDates.includes(deliveryDate)) {
@@ -138,11 +262,12 @@ export default function OrderForm() {
           throw new Error(data.error || "メニュー取得に失敗しました。");
         }
 
-        setMenuItems(data.menu.items);
+        const items = data.menu?.items || [];
+        setMenuItems(items);
         setSelectedMenuItem((current) =>
-          data.menu.items.some((item) => item.name === current)
+          items.some((item) => item.name === current)
             ? current
-            : data.menu.items[0]?.name || "",
+            : items[0]?.name || "",
         );
       } catch (fetchError) {
         setMenuItems([]);
@@ -156,6 +281,22 @@ export default function OrderForm() {
     loadMenu();
   }, [deliveryDate, orderedDates]);
 
+  if (!mounted) {
+    return (
+      <main className="app-shell">
+        <div className="mx-auto max-w-4xl">
+          <section className="overflow-hidden rounded-[28px] border border-[color:var(--line)] bg-[color:var(--surface)] shadow-[0_20px_70px_rgba(84,53,31,0.1)] backdrop-blur">
+            <Header lang={lang} setLang={setLang} t={t} />
+            <div className="p-12 text-center">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-[color:var(--accent)] border-t-transparent"></div>
+              <p className="mt-4 font-bold text-[color:var(--text-soft)]">{t("loading")}</p>
+            </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
   function handleDateChange(nextValue) {
     const parsed = parseDateInput(nextValue);
     if (!parsed) {
@@ -163,7 +304,8 @@ export default function OrderForm() {
       return;
     }
 
-    const validation = canOrderDateForOrderWindow(parsed, undefined, holidays, debugMode);
+    const now = getNow();
+    const validation = canOrderDateForOrderWindow(parsed, now, holidays, debugMode);
     if (!validation.valid) {
       setError(validation.message);
       return;
@@ -174,12 +316,14 @@ export default function OrderForm() {
   }
 
   function handlePrevWeek() {
+    if (!displayedWeekStart) return;
     const next = new Date(displayedWeekStart);
     next.setDate(next.getDate() - 7);
     setDisplayedWeekStart(next);
   }
 
   function handleNextWeek() {
+    if (!displayedWeekStart) return;
     const next = new Date(displayedWeekStart);
     next.setDate(next.getDate() + 7);
     setDisplayedWeekStart(next);
@@ -241,17 +385,14 @@ export default function OrderForm() {
     <main className="app-shell">
       <div className="mx-auto max-w-4xl">
         <section className="overflow-hidden rounded-[28px] border border-[color:var(--line)] bg-[color:var(--surface)] shadow-[0_20px_70px_rgba(84,53,31,0.1)] backdrop-blur">
-          <div className="border-b border-[color:var(--line)] bg-[linear-gradient(135deg,rgba(185,76,47,0.98),rgba(233,150,88,0.96))] px-5 py-6 text-white md:px-8">
-            <h1 className="mt-2 text-3xl font-black leading-tight md:text-5xl">
-              お弁当予約システム
-            </h1>
-          </div>
+          <Header lang={lang} setLang={setLang} t={t} />
 
           <form className="space-y-6 px-4 py-5 md:px-8 md:py-7" onSubmit={handleSubmit}>
             <div className="grid gap-3 md:grid-cols-[160px_160px_1fr_1fr]">
-              <label className="space-y-2">
-                <span className="text-sm font-semibold text-[color:var(--text-soft)]">学年</span>
+              <div className="space-y-2">
+                <label htmlFor="grade-select" className="text-sm font-semibold text-[color:var(--text-soft)]">{t("grade")}</label>
                 <select
+                  id="grade-select"
                   className="w-full rounded-2xl border border-[color:var(--line)] bg-white px-4 py-3 outline-none transition focus:border-[color:var(--accent)]"
                   value={profile.grade}
                   onChange={(event) =>
@@ -259,17 +400,18 @@ export default function OrderForm() {
                   }
                   required
                 >
-                  <option value="">選択してください</option>
+                  <option value="">{t("select_placeholder")}</option>
                   {GRADE_OPTIONS.map((grade) => (
                     <option key={grade} value={grade}>
                       {grade}
                     </option>
                   ))}
                 </select>
-              </label>
-              <label className="space-y-2">
-                <span className="text-sm font-semibold text-[color:var(--text-soft)]">組</span>
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="class-select" className="text-sm font-semibold text-[color:var(--text-soft)]">{t("class")}</label>
                 <select
+                  id="class-select"
                   className="w-full rounded-2xl border border-[color:var(--line)] bg-white px-4 py-3 outline-none transition focus:border-[color:var(--accent)]"
                   value={profile.class_name}
                   onChange={(event) =>
@@ -277,29 +419,30 @@ export default function OrderForm() {
                   }
                   required
                 >
-                  <option value="">選択してください</option>
+                  <option value="">{t("select_placeholder")}</option>
                   {CLASS_OPTIONS.map((className) => (
                     <option key={className} value={className}>
                       {className}
-                    </option>
-                  ))}
+                    </option>                  ))}
                 </select>
-              </label>
-              <label className="space-y-2">
-                <span className="text-sm font-semibold text-[color:var(--text-soft)]">氏名</span>
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="name-input" className="text-sm font-semibold text-[color:var(--text-soft)]">{t("name")}</label>
                 <input
+                  id="name-input"
                   className="w-full rounded-2xl border border-[color:var(--line)] bg-white px-4 py-3 outline-none transition focus:border-[color:var(--accent)]"
                   value={profile.full_name}
                   onChange={(event) =>
                     setProfile((current) => ({ ...current, full_name: event.target.value }))
                   }
-                  placeholder="例: 山田 花子"
+                  placeholder={t("name_placeholder")}
                   required
                 />
-              </label>
-              <label className="space-y-2">
-                <span className="text-sm font-semibold text-[color:var(--text-soft)]">メールアドレス</span>
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="email-input" className="text-sm font-semibold text-[color:var(--text-soft)]">{t("email")}</label>
                 <input
+                  id="email-input"
                   type="email"
                   className="w-full rounded-2xl border border-[color:var(--line)] bg-white px-4 py-3 outline-none transition focus:border-[color:var(--accent)]"
                   value={profile.email}
@@ -308,38 +451,13 @@ export default function OrderForm() {
                   }
                   placeholder="example@mail.com"
                 />
-              </label>
+              </div>
             </div>
 
             <div className="rounded-[24px] bg-[color:var(--background)] p-4 md:p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-[color:var(--text-soft)]">受取日の指定</p>
-                  <div className="mt-1 flex items-center gap-4">
-                    {debugMode && (
-                      <div className="flex items-center gap-2 rounded-xl bg-white p-1 border border-[color:var(--line)]">
-                        <button
-                          type="button"
-                          onClick={handlePrevWeek}
-                          className="p-1 hover:bg-[color:var(--background)] rounded-lg transition"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-                          </svg>
-                        </button>
-                        <span className="text-xs font-bold px-1 whitespace-nowrap">週切替</span>
-                        <button
-                          type="button"
-                          onClick={handleNextWeek}
-                          className="p-1 hover:bg-[color:var(--background)] rounded-lg transition"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                          </svg>
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  <p className="text-sm font-semibold text-[color:var(--text-soft)]">{t("delivery_date_label")}</p>
                 </div>
                 {deliveryDate && debugMode ? (
                   <input
@@ -355,7 +473,7 @@ export default function OrderForm() {
                   </div>
                 ) : null}
               </div>
-              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-7">
                 {currentWeekDates.map((date) => {
                   const value = formatDateInput(date);
                   const active = value === deliveryDate;
@@ -385,7 +503,7 @@ export default function OrderForm() {
                     >
                       <span className="block text-xs opacity-75">{value}</span>
                       <span className="mt-1 block text-sm font-bold">
-                        {ordered ? "注文済" : isHoliday ? "休業日" : formatLongDate(date)}
+                        {ordered ? t("ordered") : isHoliday ? t("holiday") : formatLongDate(date)}
                       </span>
                     </button>
                   );
@@ -393,7 +511,7 @@ export default function OrderForm() {
               </div>
               {selectableDates.length === 0 ? (
                 <p className="mt-4 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-[color:var(--accent-strong)]">
-                  {weekendAccess ? "次週の注文受付対象日がありません。" : "今週の注文受付は終了しました。"}
+                  {weekendAccess ? t("no_selectable_dates_next") : t("no_selectable_dates_this")}
                 </p>
               ) : null}
             </div>
@@ -401,15 +519,25 @@ export default function OrderForm() {
             <div className="grid gap-4 xl:grid-cols-[1fr_220px]">
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-[color:var(--text-soft)]">週替わりメニュー</p>
-                  {loadingMenu ? <p className="text-sm text-[color:var(--text-soft)]">読み込み中...</p> : null}
+                  <p className="text-sm font-semibold text-[color:var(--text-soft)]">{t("weekly_menu")}</p>
+                  {loadingMenu ? <p className="text-sm text-[color:var(--text-soft)]">{t("loading")}</p> : null}
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   {menuItems.map((item, index) => {
                     const active = item.name === selectedMenuItem;
                     return (
-                      <label
-                        key={item.name}
+                      <div
+                        key={`${item.name}-${index}`}
+                        onClick={() => {
+                          setSelectedMenuItem(item.name);
+                          if (item.sizes?.[0]) {
+                            setSize(item.sizes[0].label);
+                          } else {
+                            setSize("M");
+                          }
+                          setOptions([]);
+                          setOtherOptionText("");
+                        }}
                         className={`block cursor-pointer rounded-[24px] border p-3 transition ${
                           active
                             ? "border-[color:var(--accent)] bg-[color:var(--accent-soft)]"
@@ -421,17 +549,7 @@ export default function OrderForm() {
                           name="selected_menu_item"
                           className="sr-only"
                           checked={active}
-                          onChange={() => {
-                            setSelectedMenuItem(item.name);
-                            // Reset size and options when menu item changes
-                            if (item.sizes?.[0]) {
-                              setSize(item.sizes[0].label);
-                            } else {
-                              setSize("M");
-                            }
-                            setOptions([]);
-                            setOtherOptionText("");
-                          }}
+                          readOnly
                         />
                         <MenuPhoto item={item} active={active} />
                         <div className={`${item.image ? "mt-3" : ""} flex items-start gap-3`}>
@@ -444,21 +562,22 @@ export default function OrderForm() {
                           </span>
                           <div className="min-w-0">
                             <span className="block text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--text-soft)]">
-                              Menu {index + 1}
+                              {t("menu_label")} {index + 1}
                             </span>
                             <span className="mt-1 block text-base font-bold">{item.name}</span>
                           </div>
                         </div>
-                      </label>
+                      </div>
                     );
                   })}
                 </div>
               </div>
 
               <div className="space-y-3 rounded-[24px] bg-[color:var(--surface-strong)] p-4">
-                <label className="space-y-2">
-                  <span className="text-sm font-semibold text-[color:var(--text-soft)]">チケット番号</span>
+                <div className="space-y-2">
+                  <label htmlFor="ticket-input" className="text-sm font-semibold text-[color:var(--text-soft)]">{t("ticket_number")}</label>
                   <input
+                    id="ticket-input"
                     className="w-full rounded-2xl border border-[color:var(--line)] bg-white px-4 py-3 text-xl font-black tracking-[0.18em] outline-none transition focus:border-[color:var(--accent)]"
                     placeholder="B01234"
                     value={ticketNumber}
@@ -472,19 +591,19 @@ export default function OrderForm() {
                     }}
                     required
                   />
-                </label>
+                </div>
 
                 {selectedMenuItem && (
                   <>
                     {menuItems.find((m) => m.name === selectedMenuItem)?.sizes?.length > 0 && (
-                      <label className="space-y-2">
-                        <span className="text-sm font-semibold text-[color:var(--text-soft)]">サイズ</span>
+                      <div className="space-y-2">
+                        <span className="text-sm font-semibold text-[color:var(--text-soft)]">{t("size")}</span>
                         <div className="flex flex-col gap-2">
                           {menuItems
                             .find((m) => m.name === selectedMenuItem)
-                            .sizes.map((s) => (
+                            ?.sizes?.map((s, sIndex) => (
                               <button
-                                key={s.label}
+                                key={`${s.label}-${sIndex}`}
                                 type="button"
                                 onClick={() => setSize(s.label)}
                                 className={`flex flex-col items-center justify-center rounded-2xl border px-3 py-3 transition ${
@@ -504,23 +623,23 @@ export default function OrderForm() {
                               </button>
                             ))}
                         </div>
-                      </label>
+                      </div>
                     )}
 
                     {menuItems.find((m) => m.name === selectedMenuItem)?.options?.length > 0 && (
                       <div className="space-y-2">
                         <span className="text-sm font-semibold text-[color:var(--text-soft)]">
-                          オプション（複数選択可）
+                          {t("options_label")}
                         </span>
                         <div className="grid grid-cols-2 gap-2">
-                          {menuItems
+                          {(menuItems
                             .find((m) => m.name === selectedMenuItem)
-                            ?.options?.filter((opt) => opt !== "その他")
-                            .map((opt) => {
+                            ?.options?.filter((opt) => opt !== "その他") || [])
+                            .map((opt, oIndex) => {
                               const active = options.includes(opt);
                               return (
                                 <button
-                                  key={opt}
+                                  key={`${opt}-${oIndex}`}
                                   type="button"
                                   onClick={() => {
                                     if (active) {
@@ -557,13 +676,13 @@ export default function OrderForm() {
                                 : "border-[color:var(--line)] bg-white text-[color:var(--text-soft)]"
                             }`}
                           >
-                            その他
+                            {t("other")}
                           </button>
                         </div>
                         {options.includes("その他") && (
                           <input
                             className="w-full rounded-xl border border-[color:var(--line)] bg-white px-3 py-2 text-sm outline-none transition focus:border-[color:var(--accent)]"
-                            placeholder="その他の内容を入力"
+                            placeholder={t("other_placeholder")}
                             value={otherOptionText}
                             onChange={(e) => setOtherOptionText(e.target.value)}
                             required
@@ -574,7 +693,7 @@ export default function OrderForm() {
                   </>
                 )}
                 <div className="rounded-2xl bg-[color:var(--background)] p-4 text-sm leading-6 text-[color:var(--text-soft)]">
-                  受取りはチケットと引き換えになります。
+                  {t("ticket_info")}
                 </div>
 
                 <button
@@ -588,7 +707,7 @@ export default function OrderForm() {
                   }
                   className="w-full rounded-2xl bg-[color:var(--accent)] px-4 py-4 text-base font-black text-white transition enabled:hover:bg-[color:var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {submitting ? "送信中..." : "この内容で予約する"}
+                  {submitting ? t("submitting") : t("reserve_button")}
                 </button>
               </div>
             </div>
@@ -626,7 +745,7 @@ export default function OrderForm() {
             </svg>
           </div>
           <p className="whitespace-nowrap font-bold">
-            お弁当を予約しました。ご利用ありがとうございました。
+            {t("success_message")}
           </p>
         </div>
       </div>

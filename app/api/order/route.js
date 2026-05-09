@@ -1,8 +1,8 @@
 export const runtime = "edge";
 
 import { NextResponse } from "next/server";
-import { createOrder, getHolidays, getMenuByDate, saveUser } from "../../../lib/db";
-import { canOrderDateForOrderWindow, parseDateInput } from "../../../lib/date";
+import { createOrder, getHolidays, getMenuByDate, saveUser, isDebugMode, getSetting } from "../../../lib/db";
+import { canOrderDateForOrderWindow, parseDateInput, setSystemDateOverride } from "../../../lib/date";
 import { Resend } from "resend";
 
 const ALLOWED_GRADES = ["小１", "小２", "小３", "小４", "小５", "小６", "中１", "中２", "中３"];
@@ -10,6 +10,14 @@ const ALLOWED_CLASSES = ["１組", "２組", "３組", "４組", "５組"];
 
 export async function POST(request) {
   try {
+    const debugMode = await isDebugMode();
+    if (debugMode) {
+      const override = await getSetting("debug_system_date");
+      setSystemDateOverride(override);
+    } else {
+      setSystemDateOverride(null);
+    }
+
     const body = await request.json();
     const deliveryDate = String(body.delivery_date || "");
     const ticketNumber = String(body.ticket_number || "").trim();
@@ -30,10 +38,6 @@ export async function POST(request) {
 
     const holidaysData = await getHolidays();
     const holidays = holidaysData.map((h) => h.date);
-
-    // デバッグモードの状態を確認
-    const { isDebugMode } = await import("../../../lib/db");
-    const debugMode = await isDebugMode();
 
     const validation = canOrderDateForOrderWindow(date, undefined, holidays, debugMode);
     if (!validation.valid) {

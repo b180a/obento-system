@@ -101,7 +101,7 @@ function getWeekLabel(weekStartText) {
   }
 
   const weekEnd = new Date(parsed);
-  weekEnd.setDate(weekEnd.getDate() + 4);
+  weekEnd.setDate(weekEnd.getDate() + 6);
   return `${formatLongDate(parsed)} - ${formatLongDate(weekEnd)}`;
 }
 
@@ -135,6 +135,7 @@ export default function AdminDashboard() {
   const [menuError, setMenuError] = useState("");
   const [menuSaving, setMenuSaving] = useState(false);
   const [debugMode, setDebugMode] = useState("off");
+  const [debugSystemDate, setDebugSystemDate] = useState("");
   const [settingsLoading, setSettingsLoading] = useState(false);
 
   useEffect(() => {
@@ -207,7 +208,8 @@ export default function AdminDashboard() {
       const response = await fetch("/api/admin/settings");
       const data = await response.json();
       if (response.ok) {
-        setDebugMode(data.debug_mode);
+        setDebugMode(data.debug_mode || "off");
+        setDebugSystemDate(data.debug_system_date || "");
       }
     } finally {
       setSettingsLoading(false);
@@ -225,6 +227,22 @@ export default function AdminDashboard() {
       });
       if (response.ok) {
         setDebugMode(nextValue);
+      }
+    } finally {
+      setSettingsLoading(false);
+    }
+  }
+
+  async function handleDebugSystemDateChange(date) {
+    setSettingsLoading(true);
+    try {
+      const response = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ debug_system_date: date }),
+      });
+      if (response.ok) {
+        setDebugSystemDate(date);
       }
     } finally {
       setSettingsLoading(false);
@@ -950,8 +968,6 @@ export default function AdminDashboard() {
                             className={`aspect-square rounded-xl text-sm font-bold transition flex flex-col items-center justify-center ${
                               isHoliday
                                 ? "bg-[color:var(--accent-soft)] text-[color:var(--accent-strong)] border-2 border-[color:var(--accent)]"
-                                : isSatSun
-                                ? "bg-[color:var(--background)] text-[color:var(--text-soft)] border border-transparent"
                                 : "bg-white border border-[color:var(--line)] text-[color:var(--text)] hover:border-[color:var(--accent)]"
                             }`}
                           >
@@ -969,15 +985,11 @@ export default function AdminDashboard() {
             <div className="mt-8 flex items-center justify-center gap-6 text-xs font-semibold text-[color:var(--text-soft)]">
               <div className="flex items-center gap-2">
                 <span className="h-4 w-4 rounded-md border border-[color:var(--line)] bg-white" />
-                <span>通常営業</span>
+                <span>営業日</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="h-4 w-4 rounded-md border-2 border-[color:var(--accent)] bg-[color:var(--accent-soft)]" />
-                <span>休業日</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="h-4 w-4 rounded-md bg-[color:var(--background)]" />
-                <span>土日（自動休業）</span>
+                <span>休業日（予約不可）</span>
               </div>
             </div>
           </section>
@@ -998,26 +1010,63 @@ export default function AdminDashboard() {
             </div>
 
             <div className="mt-8 space-y-6">
-              <div className="flex items-center justify-between rounded-[24px] border border-[color:var(--line)] bg-white p-6">
-                <div>
-                  <h3 className="text-lg font-bold text-[color:var(--text)]">デバッグモード</h3>
-                  <p className="mt-1 text-sm text-[color:var(--text-soft)]">
-                    ONにすると、フロント画面で未来の週も予約可能になり、週移動ボタンが表示されます。
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleDebugModeToggle}
-                  className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors duration-200 outline-none ${
-                    debugMode === "on" ? "bg-[color:var(--ok)]" : "bg-gray-200"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform duration-200 ${
-                      debugMode === "on" ? "translate-x-7" : "translate-x-1"
+              <div className="space-y-4 rounded-[24px] border border-[color:var(--line)] bg-white p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-[color:var(--text)]">デバッグモード</h3>
+                    <p className="mt-1 text-sm text-[color:var(--text-soft)]">
+                      ONにすると、フロント画面で未来の週も予約可能になり、システム日付を自由に変更できます。
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleDebugModeToggle}
+                    className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors duration-200 outline-none ${
+                      debugMode === "on" ? "bg-[color:var(--ok)]" : "bg-gray-200"
                     }`}
-                  />
-                </button>
+                  >
+                    <span
+                      className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform duration-200 ${
+                        debugMode === "on" ? "translate-x-7" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {debugMode === "on" && (
+                  <div className="mt-6 border-t border-[color:var(--line)] pt-6 space-y-4">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <h4 className="font-bold text-[color:var(--text)]">システム日付の上書き</h4>
+                        <p className="text-xs text-[color:var(--text-soft)]">
+                          「今日」を任意の日付に設定して、週の自動切り替えや締め切りロジックを検証できます。
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="date"
+                          className="rounded-xl border border-[color:var(--line)] bg-white px-3 py-2 text-sm outline-none focus:border-[color:var(--accent)]"
+                          value={debugSystemDate}
+                          onChange={(e) => handleDebugSystemDateChange(e.target.value)}
+                        />
+                        {debugSystemDate && (
+                          <button
+                            type="button"
+                            onClick={() => handleDebugSystemDateChange("")}
+                            className="text-xs font-bold text-[color:var(--accent)] underline"
+                          >
+                            解除
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {debugSystemDate && (
+                      <div className="rounded-xl bg-[color:var(--background)] px-4 py-3 text-xs font-semibold text-[color:var(--accent-strong)]">
+                        現在、システムは <strong>{debugSystemDate}</strong> として動作しています。
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </section>
