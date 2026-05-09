@@ -939,7 +939,6 @@ export default function AdminDashboard() {
                         
                         const dateStr = formatDateInput(date);
                         const isHoliday = holidays.includes(dateStr);
-                        const isSatSun = date.getDay() === 0 || date.getDay() === 6;
                         
                         return (
                           <button
