@@ -5,7 +5,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "pages:build": "npx @opennextjs/cloudflare",
+    "pages:build": "npx @opennextjs/cloudflare build",
     "deploy": "echo 'Deployment is managed by Cloudflare Pages automatic integration'"
   },
   "dependencies": {
