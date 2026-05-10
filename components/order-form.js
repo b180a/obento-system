@@ -749,6 +749,9 @@ export default function OrderForm() {
           </p>
         </div>
       </div>
+      <div className="mt-8 text-center text-[8px] text-[color:var(--text-soft)] opacity-30">
+        Build: 20260510-1815-V3
+      </div>
     </main>
   );
 }
