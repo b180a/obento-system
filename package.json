@@ -6,7 +6,7 @@
     "build": "next build",
     "start": "next start",
     "pages:build": "npx @cloudflare/next-on-pages",
-    "preview": "npm run pages:build && wrangler pages dev"
+    "deploy": "echo 'Deployment is handled by Cloudflare Pages automatic integration'"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.2.4",
